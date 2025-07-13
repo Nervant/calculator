@@ -115,6 +115,7 @@ class Calculator:
         }
 
         self.operations = {"/": "÷", "*": "×", "-": "-", "+": "+"}
+        self.inverse_operations = {v: k for k, v in self.operations.items()}
 
         self.buttons_frame = self._create_buttons_frame()
         self._configure_grid()
@@ -192,7 +193,7 @@ class Calculator:
     def _append_operator(self, operator):
         if not self.current_expression and not self.total_expression:
             return
-        self.total_expression += self.current_expression + operator
+        self.total_expression += self.current_expression + self.operations[operator]
         self.current_expression = ""
         self._update_total_label()
         self._update_current_label()
@@ -228,7 +229,8 @@ class Calculator:
 
     def _prepare_expression(self):
         raw = self.total_expression + self.current_expression
-        return self.logic.resolve_percentage(raw.replace('×', '*').replace('÷', '/'))
+        translated = ''.join(self.inverse_operations.get(char, char) for char in raw)
+        return self.logic.resolve_percentage(translated)
 
     def _compute_expression(self, expression):
         try:
