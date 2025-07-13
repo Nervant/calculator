@@ -1,11 +1,6 @@
 import tkinter as tk
 import re
 
-LARGE_FONT = ("Arial", 40, "bold")
-MEDIUM_FONT = ("Arial", 30, "bold")
-SMALL_FONT = ("Arial", 24, "bold")
-DEFAULT_FONT = ("Arial", 20)
-
 BLACK = "#000000"
 DARK_GRAY = "#1C1C1C"
 MEDIUM_GRAY = "#333333"
@@ -16,49 +11,61 @@ class CalculatorLogic:
     def __init__(self):
         self.operators = {'+', '-', '*', '/'}
 
-    def compute(self, expression):
-        expr = self._strip_trailing_operators(expression)
-        tokens = self._tokenize(expr)
-        rpn = self._to_rpn(tokens)
+    def compute(self, expression: str) -> float:
+        expression = self._strip_trailing_operators(expression)
+        tokens = self._tokenize(expression)
+        rpn = self._convert_to_rpn(tokens)
         return self._evaluate_rpn(rpn)
 
-    def format_result(self, value):
-        num = float(value)
-        if abs(num) > 1e15:
-            return f"{num:.2e}"
-        rounded = round(num, 6)
+    def format_result(self, value: float) -> str:
+        if abs(value) > 1e15:
+            return f"{value:.2e}"
+        rounded = round(value, 6)
         result = f"{rounded:.6f}".rstrip('0').rstrip('.')
         return result[:11] if len(result) > 11 else result
 
-    def _strip_trailing_operators(self, expression):
+    def resolve_percentage(self, expression: str) -> str:
+        match = re.search(r'(.+?)([+\-*/])(\d+(\.\d+)?)%$', expression)
+        if not match:
+            return expression
+        base_expr, operator, percent_str, _ = match.groups()
+        base = self.compute(base_expr)
+        percent_value = base * (float(percent_str) / 100)
+        return f"{base_expr}{operator}{percent_value}"
+
+    def _strip_trailing_operators(self, expression: str) -> str:
         return expression.strip().rstrip(''.join(self.operators))
 
-    def _tokenize(self, expression):
+    def _tokenize(self, expression: str):
         return re.findall(r'\d+\.\d+|\d+|[()+\-*/]', expression)
 
-    def _to_rpn(self, tokens):
+    def _convert_to_rpn(self, tokens):
         precedence = {'+': 1, '-': 1, '*': 2, '/': 2}
-        output, ops = [], []
-        prev = None
+        output = []
+        operators = []
+        previous_token = None
+
         for token in tokens:
             if re.match(r'\d+(\.\d+)?', token):
                 output.append(float(token))
             elif token in precedence:
-                if token == '-' and (prev is None or prev in '(-+*/'):
+                if token == '-' and (previous_token is None or previous_token in '(-+*/'):
                     output.append(0.0)
-                while ops and ops[-1] != '(' and precedence[ops[-1]] >= precedence[token]:
-                    output.append(ops.pop())
-                ops.append(token)
+                while operators and operators[-1] != '(' and precedence[operators[-1]] >= precedence[token]:
+                    output.append(operators.pop())
+                operators.append(token)
             elif token == '(':
-                ops.append(token)
+                operators.append(token)
             elif token == ')':
-                while ops and ops[-1] != '(':
-                    output.append(ops.pop())
-                if ops and ops[-1] == '(':
-                    ops.pop()
-            prev = token
-        while ops:
-            output.append(ops.pop())
+                while operators and operators[-1] != '(':
+                    output.append(operators.pop())
+                if operators and operators[-1] == '(':
+                    operators.pop()
+            previous_token = token
+
+        while operators:
+            output.append(operators.pop())
+
         return output
 
     def _evaluate_rpn(self, tokens):
@@ -71,9 +78,12 @@ class CalculatorLogic:
                     raise ValueError
                 b = stack.pop()
                 a = stack.pop()
-                if token == '+': stack.append(a + b)
-                elif token == '-': stack.append(a - b)
-                elif token == '*': stack.append(a * b)
+                if token == '+':
+                    stack.append(a + b)
+                elif token == '-':
+                    stack.append(a - b)
+                elif token == '*':
+                    stack.append(a * b)
                 elif token == '/':
                     if b == 0:
                         raise ZeroDivisionError
@@ -81,17 +91,6 @@ class CalculatorLogic:
         if len(stack) != 1:
             raise ValueError
         return stack[0]
-
-    def resolve_percentage(self, expression):
-        match = re.search(r'(.+?)([+\-*/])(\d+(\.\d+)?)%$', expression)
-        if not match:
-            return expression
-        base_expr, operator, percent_str, _ = match.groups()
-        base = self.compute(base_expr)
-        percent = float(percent_str)
-        percent_value = base * (percent / 100)
-        return f"{base_expr}{operator}{percent_value}"
-
 
 class Calculator:
     def __init__(self):
@@ -106,7 +105,7 @@ class Calculator:
         self.current_expression = ""
 
         self.display_frame = self._create_display_frame()
-        self.total_label, self.label = self._create_display_labels()
+        self.total_label, self.current_label = self._create_display_labels()
 
         self.digits = {
             7: (1, 1), 8: (1, 2), 9: (1, 3),
@@ -131,15 +130,15 @@ class Calculator:
         return frame
 
     def _create_display_labels(self):
-        total_label = tk.Label(self.display_frame, text=self.total_expression, anchor=tk.E, bg=DARK_GRAY,
-                               fg=WHITE, padx=24, font=SMALL_FONT)
+        total_label = tk.Label(self.display_frame, text=self.total_expression, anchor=tk.E,
+                               bg=DARK_GRAY, fg=WHITE, padx=24, font=("Arial", 16))
         total_label.pack(expand=True, fill='both')
 
-        label = tk.Label(self.display_frame, text=self.current_expression, anchor=tk.E, bg=DARK_GRAY,
-                         fg=WHITE, padx=24, font=LARGE_FONT)
-        label.pack(expand=True, fill='both')
+        current_label = tk.Label(self.display_frame, text=self.current_expression, anchor=tk.E,
+                                 bg=DARK_GRAY, fg=WHITE, padx=24, font=("Arial", 40, "bold"))
+        current_label.pack(expand=True, fill='both')
 
-        return total_label, label
+        return total_label, current_label
 
     def _create_buttons_frame(self):
         frame = tk.Frame(self.window, bg=BLACK)
@@ -147,18 +146,35 @@ class Calculator:
         return frame
 
     def _configure_grid(self):
-        self.buttons_frame.rowconfigure(0, weight=1)
-        for x in range(1, 5):
-            self.buttons_frame.rowconfigure(x, weight=1)
-            self.buttons_frame.columnconfigure(x, weight=1)
+        for row in range(5):
+            self.buttons_frame.rowconfigure(row, weight=1)
+        for col in range(1, 5):
+            self.buttons_frame.columnconfigure(col, weight=1)
 
     def _create_buttons(self):
         self._create_digit_buttons()
         self._create_operator_buttons()
-        self._create_clear_button()
-        self._create_square_button()
-        self._create_percentage_button()
-        self._create_equals_button()
+        self._create_special_buttons()
+
+    def _create_digit_buttons(self):
+        for digit, position in self.digits.items():
+            self._create_button(str(digit), position[0], position[1], lambda x=digit: self._add_to_expression(x))
+
+    def _create_operator_buttons(self):
+        for i, (operator, symbol) in enumerate(self.operations.items()):
+            self._create_button(symbol, i, 4, lambda x=operator: self._append_operator(x))
+
+    def _create_special_buttons(self):
+        self._create_button("C", 0, 1, self._clear)
+        self._create_button("x²", 0, 2, self._square)
+        self._create_button("%", 0, 3, self._percentage)
+        self._create_button("=", 4, 3, self.evaluate, colspan=2, bg=BLUE)
+
+    def _create_button(self, text, row, col, command, colspan=1, bg=MEDIUM_GRAY):
+        button = tk.Button(self.buttons_frame, text=text, bg=bg, fg=WHITE,
+                           borderwidth=0, highlightthickness=0, relief="flat",
+                           command=command, font=("Arial", 24))
+        button.grid(row=row, column=col, columnspan=colspan, sticky=tk.NSEW)
 
     def _bind_keys(self):
         self.window.bind("<Return>", lambda event: self.evaluate())
@@ -167,107 +183,65 @@ class Calculator:
         for key in self.operations:
             self.window.bind(key, lambda event, operator=key: self._append_operator(operator))
 
-    def _create_digit_buttons(self):
-        for digit, grid in self.digits.items():
-            button = tk.Button(self.buttons_frame, text=str(digit), bg=MEDIUM_GRAY, fg=WHITE, font=SMALL_FONT,
-                               borderwidth=0, highlightthickness=0, relief="flat",
-                               command=lambda x=digit: self._add_to_expression(x))
-            button.grid(row=grid[0], column=grid[1], sticky=tk.NSEW)
-
-    def _create_operator_buttons(self):
-        i = 0
-        for operator, symbol in self.operations.items():
-            button = tk.Button(self.buttons_frame, text=symbol, bg=MEDIUM_GRAY, fg=WHITE, font=DEFAULT_FONT,
-                               borderwidth=0, highlightthickness=0, relief="flat",
-                               command=lambda x=operator: self._append_operator(x))
-            button.grid(row=i, column=4, sticky=tk.NSEW)
-            i += 1
-
-    def _create_clear_button(self):
-        button = tk.Button(self.buttons_frame, text="C", bg=MEDIUM_GRAY, fg=WHITE, font=DEFAULT_FONT,
-                           borderwidth=0, highlightthickness=0, relief="flat",
-                           command=self._clear)
-        button.grid(row=0, column=1, sticky=tk.NSEW)
-
-    def _create_square_button(self):
-        button = tk.Button(self.buttons_frame, text="x²", bg=MEDIUM_GRAY, fg=WHITE, font=DEFAULT_FONT,
-                           borderwidth=0, highlightthickness=0, relief="flat",
-                           command=self._square)
-        button.grid(row=0, column=2, sticky=tk.NSEW)
-
-    def _create_percentage_button(self):
-        button = tk.Button(self.buttons_frame, text="%", bg=MEDIUM_GRAY, fg=WHITE, font=DEFAULT_FONT,
-                           borderwidth=0, highlightthickness=0, relief="flat",
-                           command=self._percentage)
-        button.grid(row=0, column=3, sticky=tk.NSEW)
-
-    def _create_equals_button(self):
-        button = tk.Button(self.buttons_frame, text="=", bg=BLUE, fg=WHITE, font=DEFAULT_FONT,
-                           borderwidth=0, highlightthickness=0, relief="flat",
-                           command=self.evaluate)
-        button.grid(row=4, column=3, columnspan=2, sticky=tk.NSEW)
-
     def _add_to_expression(self, value):
         if self.current_expression == "Error":
             self.current_expression = ""
         self.current_expression += str(value)
-        self._update_label()
+        self._update_current_label()
 
     def _append_operator(self, operator):
         if not self.current_expression and not self.total_expression:
             return
-        self.total_expression += self.current_expression + self.operations[operator]
+        self.total_expression += self.current_expression + operator
         self.current_expression = ""
         self._update_total_label()
-        self._update_label()
+        self._update_current_label()
 
     def _clear(self):
         self.current_expression = ""
         self.total_expression = ""
         self._update_total_label()
-        self._update_label()
+        self._update_current_label()
 
     def _square(self):
         try:
             value = float(self.current_expression)
             self.current_expression = self.logic.format_result(value ** 2)
-        except Exception:
+        except (ValueError, TypeError):
             self.current_expression = "Error"
-        self._update_label()
+        self._update_current_label()
 
     def _percentage(self):
         if self.current_expression and not self.current_expression.endswith('%'):
             self.current_expression += '%'
-            self._update_label()
+            self._update_current_label()
 
     def evaluate(self):
         if not self.current_expression and not self.total_expression:
             return
-        expression = self.total_expression + self.current_expression
-        expression = expression.replace('×', '*').replace('÷', '/')
-        expression = self.logic.resolve_percentage(expression)
-        try:
-            result = self.logic.compute(expression)
-            self.current_expression = self.logic.format_result(result)
-        except Exception:
-            self.current_expression = "Error"
+        expression = self._prepare_expression()
+        result = self._compute_expression(expression)
+        self.current_expression = result
         self.total_expression = ""
         self._update_total_label()
-        self._update_label()
+        self._update_current_label()
+
+    def _prepare_expression(self):
+        raw = self.total_expression + self.current_expression
+        return self.logic.resolve_percentage(raw.replace('×', '*').replace('÷', '/'))
+
+    def _compute_expression(self, expression):
+        try:
+            result = self.logic.compute(expression)
+            return self.logic.format_result(result)
+        except (ZeroDivisionError, ValueError):
+            return "Error"
 
     def _update_total_label(self):
         self.total_label.config(text=self.total_expression)
 
-    def _update_label(self):
-        text = self.current_expression
-        if len(text) <= 11:
-            font = LARGE_FONT
-        elif len(text) <= 18:
-            font = MEDIUM_FONT
-        else:
-            font = SMALL_FONT
-        self.label.config(text=text, font=font)
-
+    def _update_current_label(self):
+        self.current_label.config(text=self.current_expression)
 
 if __name__ == "__main__":
     Calculator().run()
