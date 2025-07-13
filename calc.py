@@ -151,11 +151,26 @@ class Calculator:
         self._add_button("=", 4, 3, self._evaluate, colspan=2, bg=BLUE)
 
     def _add_button(self, text, row, col, command, colspan=1, bg=MEDIUM_GRAY):
-        tk.Button(
-            self.buttons_frame, text=text, bg=bg, fg=WHITE, font=("Arial", 24),
-            borderwidth=0, relief="flat", command=command,
-            activebackground=bg, activeforeground=WHITE, takefocus=0
-        ).grid(row=row, column=col, columnspan=colspan, sticky=tk.NSEW)
+        button = self._button_factory(text, command, bg)
+        button.grid(row=row, column=col, columnspan=colspan, sticky=tk.NSEW)
+
+    def _button_factory(self, text, command, bg):
+        return tk.Button(
+            self.buttons_frame,
+            text=text,
+            command=command,
+            bg=bg,
+            fg=WHITE,
+            font=("Arial", 24),
+            borderwidth=0,
+            highlightthickness=0,
+            highlightbackground=bg,
+            highlightcolor=bg,
+            relief="flat",
+            activebackground=bg,
+            activeforeground=WHITE,
+            takefocus=0
+        )
 
     def _bind_keys(self):
         self.window.bind("<Return>", lambda e: self._evaluate())
